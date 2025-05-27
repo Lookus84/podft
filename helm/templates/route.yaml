@@ -1,0 +1,39 @@
+
+{{- if .Capabilities.APIVersions.Has "route.openshift.io/v1" -}}
+{{- if .Values.route.app.enabled -}}
+{{- $fullName := include "app.name" . -}}
+{{- $svcPort := (first .Values.service.app.ports).port -}}
+{{- range .Values.route.app.hosts }}
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ $fullName }}{{ .path | trimSuffix "/" | replace  "/" "-"  }}
+  labels:
+    {{- include "app.labels" $ | nindent 4 }}
+  {{- with $.Values.route.app.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if $.Values.route.app.tls }}
+  tls:
+    {{- range $.Values.route.app.tls }}
+    - hosts:
+        {{- range .hosts }}
+        - {{ . | quote }}
+        {{- end }}
+      secretName: {{ .secretName }}
+    {{- end }}
+  {{- end }}
+  host: {{ .host | quote }}
+  port:
+    targetPort: {{ default $svcPort .port }}
+  to:
+    kind: Service
+    name: {{ default $fullName .serviceName }}
+  # pathType: {{ .pathType | quote }}
+  path: {{ .path }}
+{{- end }}
+{{- end }}
+{{- end }}

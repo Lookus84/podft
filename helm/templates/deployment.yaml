@@ -1,0 +1,183 @@
+{{ $_ := set .Values "imageType" "app" }}
+{{/* Выбираем объект под систему оркестрации: k8s или openshift*/}}
+{{- $dep_conf := ternary true false (.Capabilities.APIVersions.Has "apps.openshift.io/v1") }}
+
+{{/* Выбираем вариант селектора под deployment или deploymentConfig */}}
+{{- define "selector" -}}
+{{- $dep_conf := (index . 0) }}
+{{- $param := (index . 1) }}
+{{- if $dep_conf }}
+    {{- include "app.selectorLabels" $param | nindent 4 }}
+    name: {{ include "app.fullName" $param }}
+{{- else }}
+    matchLabels:
+      {{/*- include "app.selectorLabels" $param | nindent 6 */}}
+      name: {{ include "app.fullName" $param }}
+{{- end }}
+{{- end }}
+
+kind: {{ ternary "DeploymentConfig" "Deployment" $dep_conf }}
+apiVersion: {{ ternary "apps.openshift.io/v1" "apps/v1" $dep_conf }}
+metadata:
+  name: {{ include "app.fullName" . }}
+  labels:
+    {{- include "app.labels" . | nindent 4 }}
+    app: {{ include "app.name" . }}
+    branch: {{ .Chart.Version | quote }}
+    wave: {{ .Values.app.image.startWave | quote }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    {{- include "selector" (list $dep_conf .) }}
+  {{- with .Values.strategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  template:
+    metadata:
+      {{- include "annotations.add" (list . "pod" (first .Values.service.app.ports).port) | nindent 6 }}
+      labels:
+        {{- include "app.selectorLabels" . | nindent 8 }}
+        app: {{ include "app.name" . }}
+        branch: {{ .Chart.Version | quote }}
+        name: {{ include "app.fullName" . }}
+    spec:
+      volumes:
+        {{- include "vol.def" (list . "deployment") | indent 8}}
+        - name: share-volume
+          configMap:
+            name: share-volume
+            defaultMode: 511
+        - name: share-config-volume
+          configMap:
+            name: share-config-volume
+            defaultMode: 511
+        {{- if .Values.volumes }}
+        {{- toYaml .Values.volumes | default "" | nindent 8 }}           
+        {{- end }} 
+      {{- if .Values.initContainers }}
+      initContainers:
+      {{-   range .Values.initContainers }}
+      {{-     include "init.container.body" (list $ . "deployment-init-cont") | indent 8 }}
+      {{-   end }}
+      {{- end }}  
+
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "app.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ include "app.fullName" . }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.app.image.repository }}:{{ .Values.app.image.tag | default .Chart.AppVersion }}"
+          command:
+            - /bin/sh
+          args:
+            - '-c'
+            - '
+              {{- if .Values.vault.enabled }}
+              {{ .Values.vault.cmdToInject }}
+              {{- end }}
+              {{- if .Values.istio.enabled }}
+              until wget -q -O - http://localhost:15000/server_info | grep "\"state\": \"LIVE\""; do echo ">>> Waiting for sidecar"; sleep 2 ; done ; echo ">>> Sidecar available"; 
+              {{- end }}
+              {{- if empty .Values.app.image.entrypoint }}
+              if [ -f "/share/scripts/verchecker" ]; then mv /share/scripts/verchecker /share/verchecker; chmod 777 /share/verchecker; fi;
+              mkdir -p /share/config/ && find /opt/config/* -type l -not -iname "cacerts" -exec cp "{}" "/share/config" ";"; if [ -f "/opt/config/cacerts" ]; then cp /opt/config/cacerts /etc/ssl/certs/java/; fi;
+              cp /opt/share/* /share; 
+              if [ -d /opt/lib_config ] && [ ! -z "$(ls -A /opt/lib_config)" ]; then mkdir -p /share/config/; cp -R /opt/lib_config/* /share/config/; fi;
+              sh /share/scripts/run-application.sh "{{ include "app.name" . }}" "" "" "$JAVA_XMX" "$JAVA_XMS" "{{ if .Values.certificatesMount.enabled }}{{.Values.certificatesMount.certificatesPath}}{{end}}"
+              {{- else }}
+              {{ .Values.app.image.entrypoint }}
+              {{- end }}
+              '
+          workingDir: /share/config
+          imagePullPolicy: {{ .Values.app.image.pullPolicy }}
+          ports:
+            {{- with .Values.service.app.ports }}
+              {{- toYaml . | replace "port" "containerPort" | nindent 10 }}
+            {{- end }}
+          {{- with .Values.environmentsFrom }}
+          envFrom:
+            {{- include "envFrom.add" (list $.Values (include "app.fullName" $ ) "deployment-main-cont") | indent 12 }}
+          {{- end }}
+          {{- with .Values.environments }}
+          env:
+            {{- include "env.add" (list $.Values "deployment-main-cont") | indent 12 }}
+          {{- end }}
+          volumeMounts:
+            {{- include "vol.mount" (list . "deployment-main-cont") | indent 12}}
+            {{- if .Values.volumes }}
+            {{- toYaml .Values.volumeMounts | default "" | nindent 12 }}
+            {{- end }}
+            - name: share-volume
+              mountPath: /opt/share
+            - name: share-config-volume
+              mountPath: /opt/config      
+          {{- with .Values.resources.app }}
+          resources:
+            {{- toYaml $.Values.resources.app | nindent 12 }}
+          {{- end }}     
+ {{/*}}         livenessProbe:
+            httpGet:
+              path: /{{ include "app.name" . }}/actuator/info
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 180
+            timeoutSeconds: 1
+            periodSeconds: 20
+            successThreshold: 1
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /{{ include "app.name" . }}/actuator/info
+              port: 8080
+              scheme: HTTP
+            timeoutSeconds: 1
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /{{ include "app.name" . }}/actuator/info
+              port: 8080
+              scheme: HTTP
+            timeoutSeconds: 1
+            periodSeconds: 20
+            successThreshold: 1
+            failureThreshold: 9
+          {{- include "app.readinessProbe" (list $ .Values.service.app) | indent 10}}
+          {{- include "app.livenessProbe" (list $ .Values.service.app) | indent 10}}
+          {{- include "app.startupProbe" (list $ .Values.service.app) | indent 10*/}}
+          {{- include "app.uniProbe" (list $ .Values.service.app "readinessProbe") | indent 10}}
+          {{- include "app.uniProbe" (list $ .Values.service.app "livenessProbe") | indent 10}}
+          {{- include "app.uniProbe" (list $ .Values.service.app "startupProbe") | indent 10}}
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /bin/sh
+                  - '-c'
+                  - sh /share/scripts/pre-stoppod.sh {{ include "app.name" . }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.hostAliases }}
+      hostAliases:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -1,0 +1,13 @@
+{{ $_ := set .Values "imageType" "app" }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "app.fullName" . }}
+  labels:
+    app: {{ include "app.name" . }}
+spec:
+  type: {{ .Values.service.app.type }}
+  ports:
+  {{- include "app.ports" (list .Values.service.app.ports "service") | indent 4 }}
+  selector:
+    name: {{ include "app.fullName" . }}

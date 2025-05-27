@@ -1,0 +1,111 @@
+{{- range $image, $imageData := .Values.di }}
+{{- include "job.di" (list $ $image $imageData) }}
+{{- end }}
+
+{{- define "job.di" -}}
+{{- $params := (index . 0) }}
+{{- $name := (index . 1) }}
+{{- $sourceDiImg := (index . 2) }}
+---
+kind: Job
+apiVersion: batch/v1
+metadata:
+  name: {{ include "di.fullName" (list $params $sourceDiImg) }}
+  labels:
+    app: {{ include "di.name" (list $params $sourceDiImg) }}
+    wave: {{ $sourceDiImg.startWave | quote }}
+  annotations:
+    "helm.sh/hook": "post-install,post-upgrade,pre-rollback"
+    "helm.sh/hook-weight": "3"
+    "helm.sh/resource-policy": "keep"
+spec:
+  parallelism: 1
+  backoffLimit: 0
+  template:
+    metadata:
+      {{- include "annotations.add" (list $params "job" "") | indent 6 }}
+      labels:
+        job-name: {{ include "di.fullName" (list $params $sourceDiImg) }}
+        name: {{ include "di.fullName" (list $params $sourceDiImg) }}
+    spec:
+      serviceAccountName: {{ include "app.serviceAccountName" $params }}
+      volumes:
+        {{- include "vol.def.emptyDir" "diasoft-datainstall-data" | indent 8 }} 
+
+      initContainers:
+        - name: init-{{ include "di.moduleName" (list $params $sourceDiImg) }}
+          securityContext:
+            {{- toYaml $params.Values.securityContext | nindent 12 }}
+          command:
+            - /bin/sh
+          volumeMounts:
+            - name: diasoft-datainstall-data
+              mountPath: /home/didata
+          image: {{ include "di.image" (list $params $sourceDiImg) | quote }}
+          imagePullPolicy: {{ include "di.pullPolicy" (list $params $sourceDiImg) }}
+          args:
+            - '-c'
+{{- $sh_dest := "/home/didata" }}
+            - 'mkdir -p {{ $sh_dest }} && cp -R /opt/diasoft/datainstall/. {{ $sh_dest }};'
+
+      containers:
+        - name: {{ include "di.fullName" (list $params $sourceDiImg) }}
+          securityContext:
+            {{- toYaml $params.Values.securityContext | nindent 12 }}
+          {{-   range $params.Values.initContainers }}
+          {{-     if contains "devopsutils" .image.repository }}
+          imagePullPolicy: {{ include "di.pullPolicy" (list $params $sourceDiImg) }}
+          image: "{{ .image.repository }}:{{ .image.tag | default $params.Chart.AppVersion }}"
+          {{-     end }}
+          {{-   end }}  
+          command:
+            - /bin/sh
+          args:
+            - '-c'
+            - '
+              {{- if $params.Values.vault.enabled }}
+              {{ $params.Values.vault.cmdToInject }}
+              {{- end }}
+              if [ -f "/opt/diasoft/flextera/DevOpsUtils/scripts/verchecker" ]; then mv /opt/diasoft/flextera/DevOpsUtils/scripts/verchecker /share/verchecker; chmod 777 /share/verchecker; fi;
+              echo "SLEEP 5 minuts" && sleep 5m && cd /opt/diasoft/datainstall; sh ./install.sh --url=${DB_URL} --database=${DB_DATABASE:-$DB_LOGIN} --username=${DB_LOGIN} --password=${DB_PASSWORD} --driver=${DB_DRIVER} --schema=${DB_SCHEMA:-dqdis} --image={{ include "di.name" (list $params $sourceDiImg) }} --version={{ $params.Chart.AppVersion }} --admin=${DB_ADMIN} --adminPassword=${DB_ADMINPASSWORD} --update=${UPDATE:-true} --waitingTime=${WAITING_TIME:-60} --dcaUser=${DCA_USERNAME:-dca} --dcaPass=${DCA_PASSWORD:-12345678} --dsaUser=${DSA_USERNAME:-dsa} --dsaPass=${DSA_PASSWORD:-12345678} --dssoUser=${DSSO_USERNAME:-dsso} --dssoPass=${DSSO_PASSWORD:-12345678} --tbpUser=${TBP_USERNAME:-tbp} --tbpPass=${TBP_PASSWORD:-12345678} --datainstallUser=${DATAINSTALL_USERNAME:-di} --datainstallPass=${DATAINSTALL_PASSWORD:-12345678} --gatewayUrl=${GATEWAY_URL:-http://mdpgateway:8080} --handleRoles=${HANDLE_ROLES:-true}
+              '
+          {{- with $params.Values.environmentsFrom }}
+          envFrom:
+            {{- include "envFrom.add" (list $params.Values (include "di.fullModuleName" (list $params $sourceDiImg)) "job-main-cont") | indent 12 }}
+          {{- end }}
+          {{- with $params.Values.environments }}
+          env:
+            {{- include "env.add" (list $params.Values "job-main-cont") | indent 12 }}
+          {{- end }}
+      {{- with $params.Values.resources.di }}
+          resources:
+            {{- toYaml $params.Values.resources.di | nindent 12 }}
+      {{- end }}
+          volumeMounts:
+            - name: diasoft-datainstall-data
+              mountPath: /opt/diasoft/datainstall/data
+      restartPolicy: Never
+      securityContext: 
+      {{- toYaml $params.Values.podSecurityContext | nindent 8 }}
+      {{- with $params.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      schedulerName: default-scheduler
+      {{- with $params.Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $params.Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $params.Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
+
+
+
+    

@@ -1,0 +1,398 @@
+#!jinja|yaml
+{%- set data =  settings.get('data', {})  %}
+
+replicaCount: {{ settings.replica_count or 1 }}
+initContainers:
+{%- for container in settings.get('initContainers', []) %}
+  - image:
+      repository: "{{ container.get('image', {}).get('repository', 'default/repository') }}"
+      pullPolicy: "{{ container.get('image', {}).get('pullPolicy', 'Always') }}"
+      tag: "{{ container.get('image', {}).get('tag', 'latest') }}"
+    scripts:
+      probeHealthCheck: "{{ container.get('scripts', {}).get('probeHealthCheck', './probe-health-check.sh') }}"
+      waveScript: "{{ container.get('scripts', {}).get('waveScript', './wave-script.sh') }}"
+      preStopPod: "{{ container.get('scripts', {}).get('preStopPod', './pre-stop-pod.sh') }}"
+    environmentsFrom:
+      systemCmS:
+        enabled: {{ container.get('environmentsFrom', {}).get('systemCmS', {}).get('enabled', False) }}
+      privateCmS:
+        enabled: {{ container.get('environmentsFrom', {}).get('privateCmS', {}).get('enabled', False) }}
+{%- endfor %}
+
+namePrefix:
+  enabled: false
+  prefix: ""
+
+app:
+  image:
+    repository: "{{ app.get('image', {}).get('repo') or common.get('image', {}).get('repo') or '' }}/{{ app_name }}"
+    pullPolicy: Always
+    tag: "{{ app.get('image', {}).get('tag') or common.get('image', {}).get('tag') or '' }}"
+    image_name: "{{ app_name }}"
+    module_name: "{{ app_name }}"
+    startWave: "{{ app.get('image', {}).get('startWave') or common.get('image', {}).get('startWave') or '0' }}"
+
+{%- if app.get('isDatabase') %}
+db:
+  image:
+    repository: "{{ app.get('db_image', {}).get('repo') or common.get('db_image', {}).get('repo') or '' }}/database-{{ app_name }}"
+    pullPolicy: Always
+    tag: "{{ app.get('db_image', {}).get('tag') or common.get('db_image', {}).get('tag') or '' }}"
+    image_name: "database-{{ app_name }}"
+    module_name: "database-{{ app_name }}"
+    startWave: "{{ app.get('db_image', {}).get('startWave') or common.get('db_image', {}).get('startWave') or '0' }}"
+{% else %}
+db: []
+{% endif -%}
+
+{%- if app.get('isDatainstall') %}
+di:
+  image:
+    repository: "{{ app.get('di_image', {}).get('repo') or common.get('di_image', {}).get('repo') or '' }}/datainstall-{{ app_name }}"
+    pullPolicy: Always
+    tag: "{{ app.get('di_image', {}).get('tag') or common.get('di_image', {}).get('tag') or '' }}"
+    image_name: "datainstall-{{ app_name }}"
+    module_name: "datainstall-{{ app_name }}"
+    startWave: "{{ app.get('di_image', {}).get('startWave') or common.get('di_image', {}).get('startWave') or '0' }}"
+
+{% else %}
+di: []
+{% endif -%}
+
+bt: []
+
+{%- set app_secrets = app.get('imagePullSecrets', {}) -%}
+{%- set common_secrets = common.get('imagePullSecrets', {}) -%}
+{%- set secrets = app_secrets if app_secrets else common_secrets -%}
+
+{%- if secrets %}
+imagePullSecrets:
+{%- for secret in secrets %}
+  - name: "{{ secret }}"
+{%- endfor -%}
+{% endif -%}
+
+# Дефолтные параметры хельма, пока не используются.  
+nameOverride: ""
+fullnameOverride: ""
+# Дефолтные параметры хельма, пока не используются. Чарт не создает сервисАккаунты.
+serviceAccount:
+  create: false
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+{%- set app_service = app.get('service', ) %}
+{% set common_service = common.get('service', ) %}
+{% set service = app_service if app_service else common_service %}
+{% if service %}
+service:
+  app:
+    type: "{{ service.get('type', 'ClusterIP') }}"
+    ports:
+{%- for item in service.get('ports', [{'port': '8080', 'name': 'http', 'protocol': 'TCP'}]) %}
+      - port: {{ item.port }}
+        name: "{{ item.name }}"
+        protocol: "{{ item.protocol }}"
+{%- endfor %}
+{% endif -%}
+
+{%- set common_security_context = common.get('securityContext', {}) %}
+{%- set app_security_context = app.get('securityContext', {}) %}
+{%- set security_context = common_security_context if common_security_context else app_security_context -%}
+
+{%- set common_pod_security_context = common.get('podSecurityContext', {}) %}
+{%- set app_pod_security_context = app.get('podSecurityContext', {}) %}
+{%- set pod_security_context = common_pod_security_context if common_pod_security_context else app_pod_security_context -%}
+securityContext:
+  capabilities:
+    drop: {{ security_context.get('capabilities', {}).get('drop', ['ALL']) }}
+  privileged: {{ security_context.get('privileged', False) }}
+  runAsUser: {{ security_context.get('runAsUser', 10001) }}
+  runAsGroup: {{ security_context.get('runAsGroup', 10001) }}
+  runAsNonRoot: {{ security_context.get('runAsNonRoot', True) }}
+  readOnlyRootFilesystem: {{ security_context.get('readOnlyRootFilesystem', False) }}
+  allowPrivilegeEscalation: {{ security_context.get('allowPrivilegeEscalation', False) }}
+  seccompProfile:
+    type: {{ security_context.get('seccompProfile', {}).get('type', 'RuntimeDefault') }}
+
+podSecurityContext:
+  capabilities:
+     drop: {{ pod_security_context.get('capabilities', {}).get('drop', ['ALL']) }}
+  privileged: {{ pod_security_context.get('privileged', False) }}
+  runAsUser: {{ pod_security_context.get('runAsUser', 10001)  }}
+  runAsGroup: {{ pod_security_context.get('runAsGroup', 10001) }}
+  runAsNonRoot: {{ pod_security_context.get('runAsNonRoot', True) }}
+  seccompProfile:
+    type: {{ pod_security_context.get('seccompProfile', {}).get('type', 'RuntimeDefault') }}
+
+{# Начало шаблона ingress #}
+{# Поиск параметров конфигурации #}
+{%- set ing_enabled = app.get('ingress', {}).get('enabled', common.get('ingress', {}).get('enabled', 'False')) | lower %}
+{% set className = app.get('ingress', {}).get('className', common.get('ingress', {}).get('className', '')) | lower %}
+{% set annotations = app.get('ingress', {}).get('annotations', common.get('ingress', {}).get('annotations', {})) %}
+{% set ing_hosts = app.get('ingress', {}).get('hosts', common.get('ingress', {}).get('hosts', [])) %}
+{% set tls =  app.get('ingress', {}).get('tls', common.get('ingress', {}).get('tls', [])) %}
+
+ingress:
+    app: 
+      enabled: "{{ ing_enabled }}"
+      className: "{{ className }}"
+      annotations:
+      {%- if app_name.endswith('ui') %}
+            nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+            nginx.ingress.kubernetes.io/rewrite-target: "/$1"
+      {%- else %}
+            spec.ingressClassName: nginx
+      {%- endif -%}
+      {%- if annotations and annotations is mapping %}
+          {%- for key, value in annotations.items() %}
+            {{ key }}: "{{ value }}"
+          {%- endfor -%}
+      {% endif %}
+      {%- if ing_hosts %}
+      hosts:
+      {%- for host_config in ing_hosts %}
+        - host: "{{ merged_config.INGRESS_HOST_PREFIX }}{{ app_name }}{{ host_config.get('host', 'default-host') }}"
+          paths:
+      {%- for path in host_config.get('paths', []) %}
+            {%- if app_name.endswith('ui') %}
+            - name: "{{ app_name }}"
+              path: /(.*)
+              pathType: Prefix
+            - name: mdpgateway
+              pathType: Prefix
+              path: /api/(.*)
+              {% else %}
+            - path: "{{ path.get('path', '/') }}"
+              port: "{{ path.get('port', '80') }}"
+              pathType: "{{ path.get('pathType', 'ImplementationSpecific') }}"
+              {% endif -%}
+            {% endfor -%}
+        {% endfor -%}
+      {% else %}
+            []
+      {% endif %}
+      {%- if tls %}
+      tls:
+      {%- for tls_config in tls %}
+        - hosts:
+          {%- for host in tls_config.get('hosts', []) %}
+            - "{{ host }}"
+          {%- endfor %}
+          secretName: "{{ tls_config.get('secretName', 'wildcard-diasoft-dhdigital-cert-tls') }}"
+      {% endfor -%}
+      {% endif -%} 
+
+{# Конец шаблона ingress #}
+{#  Ресурсы #}
+{# Переписать, с учетом common #}
+{% set resources = app.get('resources', common.get('resources', {})) %}
+{% set isDatabase = app.get('isDatabase', common.get('isDatabase', 'false')) %}
+{% set isDatainstall = app.get('isDatainstall', common.get('isDatainstall', 'false')) %}
+{%- if resources != {} %}
+resources:
+{%- for resource, values in resources.items() %}
+  {% if (resource == 'db' and isDatabase|lower == 'false') or (resource == 'di' and isDatainstall|lower == 'false') %}
+    {%- continue %}
+  {% endif -%}
+  {{ resource }}:
+    limits:
+      cpu: "{{ values.limits.cpu }}"
+      memory: "{{ values.limits.memory }}"
+      ephemeral-storage: "{{ values.limits.get('ephemeral-storage', '1024Mi') }}"
+    requests:
+      cpu: "{{ values.requests.cpu }}"
+      memory: "{{ values.requests.memory }}"
+      ephemeral-storage: "{{ values.requests.get('ephemeral-storage', '256Mi') }}"
+{%- endfor -%}
+{%- else %}
+resources: {}
+{% endif %}
+
+podAnnotations: []
+
+{#  Горизонтальное автомасштабирование. #}
+{% set autoscaling = app.get('autoscaling', common.get('autoscaling', {})) %}
+{%- if autoscaling != {}  %}
+autoscaling:
+{%- for key, values in autoscaling.items() %}
+  {{ key }}: "{{ values }}"
+{%- endfor -%}
+{%- else %}
+autoscaling:
+  enabled: false
+{% endif -%}
+
+{% set nodeSelector = app.get('nodeSelector', common.get('nodeSelector', {})) %}
+{%- if nodeSelector != {}  %}
+nodeSelector:
+{%- for key, values in nodeSelector.items() %}
+  {{ key }}: "{{ values }}"
+{%- endfor -%}
+{%- else %}
+nodeSelector: {}
+{% endif %}
+
+tolerations: []
+affinity: {}
+{#  Vault #}
+{% set vault = app.get('vault', common.get('vault', {})) %}
+{%- if vault != {}  %}
+vault:
+{%- for key, values in vault.items() %}
+  {{ key }}: "{{ values }}"
+{%- endfor -%}
+{%- else %}
+vault:
+  enabled: false
+{% endif -%}
+
+{% set customCmSVolume = app.get('certificatesMount', common.get('certificatesMount', [])) %}
+{%- if customCmSVolume != []  %}
+certificatesMount:
+  enabled: {{ customCmSVolume.enabled | default (false) }}
+  certificatesPath: {{ customCmSVolume.certificatesPath | default ('') }}
+{% else %}
+certificatesMount:
+  enabled: false
+{% endif -%}
+
+{% set customCmSVolume = app.get('customCmSVolume', common.get('customCmSVolume', [])) %}
+{% if customCmSVolume %}
+customCmSVolume:
+{%- for volume in customCmSVolume %}
+  - name: {{ volume.get('name', '') }}
+    {%- if volume.get('secret') %}
+    secret:
+      secretName: {{ volume['secret'].get('secretName', '') }}
+      {%- if volume['secret'].get('items') %}
+      items:
+      {%- for item in volume['secret'].get('items', []) %}
+      - key: {{ item.get('key', '') }}
+        path: {{ item.get('path', '') }}
+      {%- endfor -%}
+      {% endif -%}
+    {% endif -%}
+    {%- if volume.get('configMap') %}
+    configMap:
+      name: {{ volume['configMap'].get('name', '') }}
+      {%- if volume['configMap'].get('defaultMode') is not none %}
+      defaultMode: {{ volume['configMap'].get('defaultMode') }}
+      {% endif %}
+      {% if volume['configMap'].get('items') %}
+      items:
+      {%- for item in volume['configMap'].get('items', []) %}
+      - key: {{ item.get('key', '') }}
+        path: {{ item.get('path', '') }}
+      {%- endfor %}
+      {% endif %}
+    {% endif %}
+    mountPath: {{ volume.get('mountPath', '') }}
+    subPath: "{{ volume.get('subPath', '') }}"
+    readOnly: {{ volume.get('readOnly', False) | lower }}
+{% endfor %}
+{%- else %}
+customCmSVolume: []
+{% endif -%}
+# Определение hostAliases. Указывается в формате List. Описываются по куберовской yaml-инструкции.
+hostAliases: []
+# Использование istio. 
+istio:
+  enabled: false
+# Использование prometheus. 
+prometheus:
+  enabled: false 
+
+
+
+{# Настройки проб для pod. #}
+readinessProbe:
+  enabled: true
+  port: {{ data.SERVICE_PORT | default(8080) }}
+  type: tcp
+  timeoutSeconds: "5"
+  periodSeconds: "30"
+livenessProbe:
+  enabled: true
+  type: tcp
+  port: {{ data.SERVICE_PORT | default(8080) }}
+  timeoutSeconds: "5"
+  periodSeconds: "30"
+  initialDelaySeconds: "1200"
+startupProbe:
+  enabled: true
+  type: tcp
+  port: {{ data.SERVICE_PORT | default(8080) }}
+  failureThreshold: "40"
+  timeoutSeconds: "5"
+  periodSeconds: "30"
+{#  Указание используемого persistentVolume #}
+persistentVolume: ""
+{# льзуемого persistentVolumeClaim #}
+persistentVolumeClaim: ""
+{#  Cледует ли подключать параметры из общих источников (например, system-config/system-secret) или личных (module-config/module-dbsecret/module-loginsecret) #}
+environmentsFrom:
+  systemCmS:
+    enabled: true
+    name: system
+  privateCmS:
+    enabled: true
+{#  Параметры, которые следует иметь в контейнере и инит-контейнерах данного образа. Описываются по куберовской yaml-инструкции.
+   podFields* - параметры спецификации поды. Указывается в формате List.
+   resourceFieldRef* - параметры спецификации ресурсов. Указывается в формате List.
+  simple - простые параметры. Указывается в формате Map. #}
+environments:
+  simple:
+    IMAGE_ARCHITECTURE: hybrid
+{#   Подключение общей шары по средставм persistentVolume #}
+commonShare:
+  enabled: false
+  mountPath: "/share/pv"
+{#  подключение спец настрок для nginx-сервера в ui-образах #}
+upstream:
+  enabled: false
+  mountPath: /etc/nginx/conf.d/upstream.conf
+  subPath: nginx-upstream.conf
+{#  подключение механизма волнового (очредного) старта продуктов. #}
+waveList:
+  enabled: true
+  mountPath: /opt/diasoft/flextera/DevOpsUtils/wave-list.properties
+  subPath: wave-list.properties
+#isComposition: true
+
+{#  Стратегия обновления pod. Указывается в формате Map. Описываются по куберовской (openshift) yaml-инструкции. #}
+strategy: 
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 25%
+    maxSurge: 25%
+
+{%- if app_name.endswith('gateway') %}
+ruleList:
+  enabled: true
+  mountPath: /share/config/rulelist.yaml
+  subPath: rulelist.yaml
+  data:
+    whitelist:
+      - api: /**
+{%- endif %}
+
+
+{# {%- set data =  settings.get('data', {})  %} #}
+{% if settings.isDatabase %}                   
+data:                       
+  DB_URL: "jdbc:postgresql://{{ merged_config.DB_HOST }}:{{ merged_config.DB_PORT }}/{{ merged_config.DB_DATABASE }}?currentSchema={{ app_name }}"
+  DB_SCHEMA: {{ app_name }}
+  SERVICE_NAME: "{{ app_name }}"
+  {%- for key, value in data.items() %}
+  {{ key }}: {{ value | tojson if value is string else value }}
+{%- endfor %}
+{% else %}
+data:                       
+  SERVICE_NAME: "{{ app_name }}"
+  {%- for key, value in data.items() %}                          
+  {{ key }}: {{ value | tojson if value is string else value }}
+  {%- endfor %}   
+{% endif %}

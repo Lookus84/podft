@@ -1,0 +1,10 @@
+#!jinja|yaml|gpg
+apiVersion: v2
+name: system
+description: Common configs
+type: application
+maintainers:
+  - name: acheremisin
+    email: acheremisin@diasoft.ru
+version: "25011601"
+appVersion: "25011601"

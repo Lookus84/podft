@@ -1,0 +1,687 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wave-list
+  namespace: {{ .Values.namespace }}
+  labels:
+    volume: wave-list
+data:
+  wave-list.properties: |
+    w0=kafka,qkafka,mdpgateway
+    w1=corews
+    w2=mdpauth
+    w3=mdpsettings
+...
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: system-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: system
+data:
+  {{- range $key, $value := .Values.system_config }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+...
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: share-volume
+  namespace: {{ .Values.namespace }}
+  labels:
+    volume: share
+data:
+  impdp.sh: >
+    mkdir -m 777 -p /share/logs/
+
+    mkdir -m 777 -p /share/logs/dbmanager/
+
+    echo 'This file shows that database initialization have been finished.' >
+    /share/logs/dbmanager/impdp-finished.txt
+...
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: share-entrypoint-volume
+  namespace: {{ .Values.namespace }}
+  labels:
+    volume: share
+data:
+  qintmqmessagebroker.sh: |
+      /opt/broker/bin/artemis run
+  elasticsearch.sh: nohup /usr/share/elasticsearch/bin/elasticsearch
+  kowl.sh: |
+    cd /app && ./kowl
+  qkafka.sh: |
+    /usr/bin/start-kafka.sh
+
+...
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: share-config-volume
+  namespace: {{ .Values.namespace }}
+  labels:
+    volume: share
+data:
+  authorization-config.xml: >
+    "<?xml version="1.0" encoding="UTF-8"?>
+    <authorization-config>
+        <auth-schema id="4" name="LDAP">
+            <description>Схема аутентификации LDAP</description>
+            <entry required="true" provider="ru.diasoft.micro.mdpauthutil.provider.ldap.LDAPAuthenticationProvider">
+                <property system-name="ldap.base.dn" name="Базовый путь">
+                    <description>Базовый путь</description>
+                    <value>dc=diasoft,dc=ru</value>
+                </property>
+                <property system-name="ldap.host" name="Хост">
+                    <description>Хост LDAP сервера</description>
+                    <value>ldap.diasoft.ru</value>
+                </property>
+                <property system-name="ldap.port" name="Порт">
+                    <description>Порт LDAP сервера</description>
+                    <value>389</value>
+                </property>
+                <property system-name="ldap.domain" name="Домен">
+                    <description>Домен LDAP сервера</description>
+                    <value>diasoft.ru</value>
+                </property>
+            </entry>
+        </auth-schema>
+        <auth-schema id="12" name="TwoFactorSMSAuthentication">
+            <description>Two factor sms authorization schema</description>
+            <entry required="true" provider="ru.diasoft.micro.mdpauthutil.provider.twofactorsms.TwoFactorSMSAuthenticationProvider"/>
+        </auth-schema>
+    </authorization-config>"
+  filestorage-config.xml: >
+    <?xml version="1.0" encoding="UTF-8"?>
+        <filestorageutils-config default-schema-id="0">
+            <filestorageutils-schema id="0" name="file">
+            <description>File</description>
+            <entry provider="ru.diasoft.micro.mdp.lib.fileutils.FileProvider">
+                <property name="uploadPath">
+                    <description>uploadPath</description>
+                    <value>/share/upload/</value>
+                </property>
+            </entry>
+        </filestorageutils-schema>
+        <filestorageutils-schema id="1" name="CHECKLIST">
+            <description>File</description>
+            <entry provider="ru.diasoft.micro.mdp.lib.fileutils.FileProvider">
+                <property name="uploadPath">
+                    <description>uploadPath</description>
+                    <value>/share/qpcbriskregister/</value>
+                </property>
+            </entry>
+        </filestorageutils-schema>
+        <filestorageutils-schema id="3" name="REPORT_TEMPLATES">
+            <description>File provider</description>
+            <entry provider="ru.diasoft.micro.mdp.lib.fileutils.FileProvider">
+                <property name="uploadPath">
+                    <description>Report templates</description>
+                    <value>/share/metadata/qclui/reports/</value>
+                </property>
+            </entry>
+        </filestorageutils-schema>
+        <filestorageutils-schema id="4" name="REPORT_OUTPUT">
+            <description>File provider</description>
+            <entry provider="ru.diasoft.micro.mdp.lib.fileutils.FileProvider">
+                <property name="uploadPath">
+                    <description>Report Output</description>
+                    <value>/share/upload/</value>
+                </property>
+            </entry>
+        </filestorageutils-schema>
+        <filestorageutils-schema id="5" name="CLIENT_REGISTER_OUTPUT">
+            <description>File provider</description>
+            <entry provider="ru.diasoft.micro.mdp.lib.fileutils.FileProvider">
+                <property name="uploadPath">
+                    <description>Client register</description>
+                    <value>/share/pv/output/clientRegister/</value>
+                </property>
+            </entry>
+        </filestorageutils-schema>
+        <filestorageutils-schema id="6" name="COMPLIANCEPROFILE_REPORT_TEMPLATES">
+            <description>File provider</description>
+            <entry provider="ru.diasoft.micro.mdp.lib.fileutils.FileProvider">
+                <property name="uploadPath">
+                    <description>Report templates</description>
+                    <value>/share/metadata/qrcccpui/reports/</value>
+                </property>
+            </entry>
+        </filestorageutils-schema>
+        <filestorageutils-schema id="7" name="QACCRUI_REPORT_TEMPLATES">
+            <description>File provider</description>
+            <entry provider="ru.diasoft.micro.mdp.lib.fileutils.FileProvider">
+                <property name="uploadPath">
+                    <description>Report templates</description>
+                    <value>/share/metadata/qaccrui/reports/</value>
+                </property>
+            </entry>
+        </filestorageutils-schema>
+        <filestorageutils-schema id="8" name="QRCRCUI_REPORT_TEMPLATES">
+            <description>File provider</description>
+            <entry provider="ru.diasoft.micro.mdp.lib.fileutils.FileProvider">
+                <property name="uploadPath">
+                    <description>Report templates</description>
+                    <value>/share/metadata/qrcrcui/reports/</value>
+                </property>
+            </entry>
+        </filestorageutils-schema>
+        <filestorageutils-schema id="9" name="CHECKLIST">
+            <description>File provider</description>
+            <entry provider="ru.diasoft.micro.mdp.lib.fileutils.FileProvider">
+                <property name="uploadPath">
+                    <description>checklist</description>
+                    <value>/share/pv/checklist/</value>
+                </property>
+            </entry>
+        </filestorageutils-schema>
+        <filestorageutils-schema id="10" name="REGISTRY">
+            <description>File provider</description>
+            <entry provider="ru.diasoft.micro.mdp.lib.fileutils.FileProvider">
+                <property name="uploadPath">
+                    <description>REGISTRY register</description>
+                    <value>/share/pv/registry/</value>
+                </property>
+            </entry>
+        </filestorageutils-schema>
+        <filestorageutils-schema id="11" name="QIRFMUI_REPORT_TEMPLATES">
+            <description>File provider</description>
+            <entry provider="ru.diasoft.micro.mdp.lib.fileutils.FileProvider">
+                <property name="uploadPath">
+                    <description>rfm reports</description>
+                    <value>/share/metadata/qirfmui/reports/</value>
+                </property>
+            </entry>
+        </filestorageutils-schema>
+            <filestorageutils-schema id="12" name="SENTMESSAGE">
+                <description>File provider</description>
+                <entry provider="ru.diasoft.micro.mdp.lib.fileutils.FileProvider">
+                    <property name="uploadPath">
+                        <description>sentmessage</description>
+                        <value>/share/pv/sentmessage/</value>
+                    </property>
+                </entry>
+            </filestorageutils-schema>
+        </filestorageutils-config>
+  license.xml: >
+            <?xml version='1.0' encoding='UTF-8'?>
+            <BODY version="2.11">
+                <DeveloperEnvironment type="java.lang.Integer">1</DeveloperEnvironment>
+                <ExpirationDate type="java.util.Date">2025-12-31T03:00:00:000+0300</ExpirationDate>
+                <LicenseType type="java.lang.String">CTL_LICENSE_MAIN</LicenseType>
+                <MODULES type="java.util.List">
+                    <ListItems>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QC</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QHT</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <LicenseOption type="java.util.Map">
+                                <allowedProcessCount type="java.lang.Integer">20</allowedProcessCount>
+                                <allowedProcessList type="java.lang.String">process1,process2</allowedProcessList>
+                                <processComplexity type="java.lang.String">enterprise</processComplexity>
+                            </LicenseOption>
+                            <MODULENAME type="java.lang.String">QBPET</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <LicenseOption type="java.util.Map">
+                                <allowedProcessSysName type="java.lang.String">process3,process4</allowedProcessSysName>
+                                <bpmDiagramUse type="java.lang.Integer">1</bpmDiagramUse>
+                                <dmnDiagramUse type="java.lang.Integer">1</dmnDiagramUse>
+                            </LicenseOption>
+                            <MODULENAME type="java.lang.String">QBPD</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QDTI</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <LicenseOption type="java.util.Map">
+                                <qscdadpahunter type="java.lang.Integer">1</qscdadpahunter>
+                            </LicenseOption>
+                            <MODULENAME type="java.lang.String">QSCD</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">PGADMIN</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QACCOR</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QGLN</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QINDLS</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QENTTS</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <LicenseOption type="java.util.Map">
+                                <QPARTProfilesCount type="java.lang.Integer">1000</QPARTProfilesCount>
+                            </LicenseOption>
+                            <MODULENAME type="java.lang.String">QPART</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QACCAN</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QSECA</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QESCAC</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QPFRPR</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <LicenseOption type="java.util.Map">
+                                <QDBPGCPUCoreCount type="java.lang.Integer">2</QDBPGCPUCoreCount>
+                                <QDBPGUserCount type="java.lang.Integer">12</QDBPGUserCount>
+                            </LicenseOption>
+                            <MODULENAME type="java.lang.String">POSTGREDB</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <LicenseOption type="java.util.Map">
+                                <QDBTRCPUCoreCount type="java.lang.Integer">3</QDBTRCPUCoreCount>
+                                <QDBTRUserCount type="java.lang.Integer">13</QDBTRUserCount>
+                            </LicenseOption>
+                            <MODULENAME type="java.lang.String">TARANTOOLDB</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <LicenseOption type="java.util.Map">
+                                <QDBCHCPUCoreCount type="java.lang.Integer">4</QDBCHCPUCoreCount>
+                                <QDBCHUserCount type="java.lang.Integer">14</QDBCHUserCount>
+                            </LicenseOption>
+                            <MODULENAME type="java.lang.String">CLICKHOUSEDB</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">SECURITYEXT</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QCD</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QIS</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QCT</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QPL</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QDCP</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QDMP</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <LicenseOption type="java.util.Map">
+                                <QDPPTParticipantCount type="java.lang.Integer">123</QDPPTParticipantCount>
+                            </LicenseOption>
+                            <MODULENAME type="java.lang.String">QDPPT</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QELKDIAG</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QELS</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QFLB</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QKIB</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QZPKN</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QENVIRNMNT</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QEMPL</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QLBOT</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <LicenseOption type="java.util.Map">
+                                <QCAClientInforming type="java.lang.Integer">1</QCAClientInforming>
+                            </LicenseOption>
+                            <MODULENAME type="java.lang.String">QCA</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <LicenseOption type="java.util.Map">
+                                <QPMVGIISDMDK type="java.lang.Integer">1</QPMVGIISDMDK>
+                                <QPMVGIISDMDKMessagePerMonth type="java.lang.Integer">99999</QPMVGIISDMDKMessagePerMonth>
+                            </LicenseOption>
+                            <MODULENAME type="java.lang.String">QPMV</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <LicenseOption type="java.util.Map">
+                                <CalcTaxDerivative type="java.lang.Integer">1</CalcTaxDerivative>
+                                <CalcTaxRepo type="java.lang.Integer">1</CalcTaxRepo>
+                                <CalcTaxSecurity type="java.lang.Integer">1</CalcTaxSecurity>
+                                <CouponRepaymentIncomeBalancing type="java.lang.Integer">1</CouponRepaymentIncomeBalancing>
+                                <FinancialMarketTaxReport type="java.lang.Integer">1</FinancialMarketTaxReport>
+                                <QBITTForeignIssuerDividendCalcTax type="java.lang.Integer">1</QBITTForeignIssuerDividendCalcTax>
+                                <QBITTRecalcTransacTaxBase type="java.lang.Integer">1</QBITTRecalcTransacTaxBase>
+                            </LicenseOption>
+                            <MODULENAME type="java.lang.String">QBITT</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <LicenseOption type="java.util.Map">
+                                <DeterminingMarketValue type="java.lang.Integer">1</DeterminingMarketValue>
+                                <MarketDataCBonds type="java.lang.Integer">1</MarketDataCBonds>
+                                <MarketDataISS type="java.lang.Integer">1</MarketDataISS>
+                                <QFMDMAPINSD type="java.lang.Integer">1</QFMDMAPINSD>
+                                <QFMDMBankEngland type="java.lang.Integer">1</QFMDMBankEngland>
+                                <QFMDMBankRussia type="java.lang.Integer">1</QFMDMBankRussia>
+                                <QFMDMBloomberg type="java.lang.Integer">1</QFMDMBloomberg>
+                                <QFMDMEuropeanCentralBank type="java.lang.Integer">1</QFMDMEuropeanCentralBank>
+                                <QFMDMGETNEWS type="java.lang.Integer">1</QFMDMGETNEWS>
+                                <QFMDMGlobalRates type="java.lang.Integer">1</QFMDMGlobalRates>
+                                <QFMDMNFA type="java.lang.Integer">1</QFMDMNFA>
+                                <QFMDMQUIKKafka type="java.lang.Integer">1</QFMDMQUIKKafka>
+                                <QFMDMReserveBankNewYork type="java.lang.Integer">1</QFMDMReserveBankNewYork>
+                                <QFMDMRuData type="java.lang.Integer">1</QFMDMRuData>
+                                <QFMDMSwissExchange type="java.lang.Integer">1</QFMDMSwissExchange>
+                            </LicenseOption>
+                            <MODULENAME type="java.lang.String">QFMDM</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <LicenseOption type="java.util.Map">
+                                <isFIXAdpQUIK type="java.lang.Integer">1</isFIXAdpQUIK>
+                                <isSTPMoexRpt type="java.lang.Integer">1</isSTPMoexRpt>
+                            </LicenseOption>
+                            <MODULENAME type="java.lang.String">QFMDP</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QSIP</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <LicenseOption type="java.util.Map">
+                                <cDFAInvestorAgr type="java.lang.Integer">123</cDFAInvestorAgr>
+                            </LicenseOption>
+                            <MODULENAME type="java.lang.String">QDFAIS</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QINTPL</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QNRDC</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QMNPQ</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QKFK</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QK8S</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QMM</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <LicenseOption type="java.util.Map">
+                                <FrontLoanNaturalPerMonth type="java.lang.Integer">1000</FrontLoanNaturalPerMonth>
+                            </LicenseOption>
+                            <MODULENAME type="java.lang.String">QLAA</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QDMS</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <LicenseOption type="java.util.Map">
+                                <CRAppUpload type="java.lang.Integer">1</CRAppUpload>
+                                <CRBankruptciesInformation type="java.lang.Integer">1</CRBankruptciesInformation>
+                                <CRGetKronos type="java.lang.Integer">1</CRGetKronos>
+                                <CRNBCHFMSEXT type="java.lang.Integer">1</CRNBCHFMSEXT>
+                                <CRPTI type="java.lang.Integer">1</CRPTI>
+                                <CRSFUS type="java.lang.Integer">1</CRSFUS>
+                            </LicenseOption>
+                            <MODULENAME type="java.lang.String">QCBI</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <LicenseOption type="java.util.Map">
+                                <QPUID_ProductCost type="java.lang.Integer">1</QPUID_ProductCost>
+                                <QPUID_TechnologWorkplace type="java.lang.Integer">5</QPUID_TechnologWorkplace>
+                            </LicenseOption>
+                            <MODULENAME type="java.lang.String">QPUID</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <LicenseOption type="java.util.Map">
+                                <QADT_ProductCost type="java.lang.Integer">1</QADT_ProductCost>
+                            </LicenseOption>
+                            <MODULENAME type="java.lang.String">QADT</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <LicenseOption type="java.util.Map">
+                                <QRB_ProductCost type="java.lang.Integer">1</QRB_ProductCost>
+                            </LicenseOption>
+                            <MODULENAME type="java.lang.String">QRB</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <LicenseOption type="java.util.Map">
+                                <QPDEV_ProductCost type="java.lang.Integer">1</QPDEV_ProductCost>
+                            </LicenseOption>
+                            <MODULENAME type="java.lang.String">QPDEV</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QISOPM</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QDRCBR</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QPMNTBLNSMNGMT</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <LicenseOption type="java.util.Map">
+                                <CBDCATFO type="java.lang.Integer">1</CBDCATFO>
+                                <DBOIntegrCBDC type="java.lang.Integer">1</DBOIntegrCBDC>
+                                <DQFPSBToCTransfers type="java.lang.Integer">1</DQFPSBToCTransfers>
+                                <DQFPSBtoBPushTransfers type="java.lang.Integer">1</DQFPSBtoBPushTransfers>
+                                <DQFPSCASHBACK type="java.lang.Integer">1</DQFPSCASHBACK>
+                                <DQFPSCROSSBORDER type="java.lang.Integer">1</DQFPSCROSSBORDER>
+                                <DQFPSCROSSBORDERTINKOFFPAY type="java.lang.Integer">1</DQFPSCROSSBORDERTINKOFFPAY>
+                                <DQFPSCToBSubscription type="java.lang.Integer">1</DQFPSCToBSubscription>
+                                <DQFPSCToBTransfers type="java.lang.Integer">1</DQFPSCToBTransfers>
+                                <DQFPSCtoBBtoCDR type="java.lang.Integer">1</DQFPSCtoBBtoCDR>
+                                <DQFPSCtoGPushTransfers type="java.lang.Integer">1</DQFPSCtoGPushTransfers>
+                                <DQFPSDISPUTE type="java.lang.Integer">1</DQFPSDISPUTE>
+                                <DQFPSECMPSBP type="java.lang.Integer">1</DQFPSECMPSBP>
+                                <DQFPSFraudIndicators type="java.lang.Integer">1</DQFPSFraudIndicators>
+                                <DQFPSFraudIndicatorsProfessional type="java.lang.Integer">1</DQFPSFraudIndicatorsProfessional>
+                                <DQFPSGostTLS type="java.lang.Integer">1</DQFPSGostTLS>
+                                <DQFPSSUPERPAY type="java.lang.Integer">1</DQFPSSUPERPAY>
+                                <MeToMePool type="java.lang.Integer">1</MeToMePool>
+                                <OperationsWithDigitalRubleCBRAlbum type="java.lang.Integer">1</OperationsWithDigitalRubleCBRAlbum>
+                                <QDRCBRIS type="java.lang.Integer">1</QDRCBRIS>
+                                <QDRCBRNSPK type="java.lang.Integer">1</QDRCBRNSPK>
+                                <QFPSIndividual type="java.lang.Integer">1</QFPSIndividual>
+                                <QFPSLegalEntity type="java.lang.Integer">1</QFPSLegalEntity>
+                            </LicenseOption>
+                            <MODULENAME type="java.lang.String">QFPS</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QRP</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <LicenseOption type="java.util.Map">
+                                <calcAppPaymentFlowsMonth type="java.lang.Integer">1000</calcAppPaymentFlowsMonth>
+                            </LicenseOption>
+                            <MODULENAME type="java.lang.String">QPSE</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QTP</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <LicenseOption type="java.util.Map">
+                                <contractCount type="java.lang.Integer">10000</contractCount>
+                            </LicenseOption>
+                            <MODULENAME type="java.lang.String">QPPM</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <LicenseOption type="java.util.Map">
+                                <productsCount type="java.lang.Integer">1000</productsCount>
+                                <serviceCount type="java.lang.Integer">2000</serviceCount>
+                            </LicenseOption>
+                            <MODULENAME type="java.lang.String">QPRD</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <LicenseOption type="java.util.Map">
+                                <requirementsCount type="java.lang.Integer">500</requirementsCount>
+                            </LicenseOption>
+                            <MODULENAME type="java.lang.String">QBIL</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <LicenseOption type="java.util.Map">
+                                <productsCount type="java.lang.Integer">1000</productsCount>
+                                <serviceCount type="java.lang.Integer">2000</serviceCount>
+                            </LicenseOption>
+                            <MODULENAME type="java.lang.String">DQPR</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QODM</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <LicenseOption type="java.util.Map">
+                                <QGAROKTMO type="java.lang.Integer">1</QGAROKTMO>
+                                <QGAROKTMOADV type="java.lang.Integer">1</QGAROKTMOADV>
+                            </LicenseOption>
+                            <MODULENAME type="java.lang.String">QGAR</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QMLWR</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <LicenseOption type="java.util.Map">
+                                <QCLNDRCALCOFPER type="java.lang.Integer">1</QCLNDRCALCOFPER>
+                            </LicenseOption>
+                            <MODULENAME type="java.lang.String">QCLNDR</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QCUR</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <LicenseOption type="java.util.Map">
+                                <QBICBIC type="java.lang.Integer">1</QBICBIC>
+                                <QBICSBP type="java.lang.Integer">1</QBICSBP>
+                                <QBICSPFS type="java.lang.Integer">1</QBICSPFS>
+                                <QBICSWIFT type="java.lang.Integer">1</QBICSWIFT>
+                            </LicenseOption>
+                            <MODULENAME type="java.lang.String">QBIC</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QOKOPF</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QOKVED</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QOKOGU</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <LicenseOption type="java.util.Map">
+                                <QCLFULL type="java.lang.Integer">1</QCLFULL>
+                            </LicenseOption>
+                            <MODULENAME type="java.lang.String">QCL</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <LicenseOption type="java.util.Map">
+                                <QPCBADT type="java.lang.Integer">1</QPCBADT>
+                            </LicenseOption>
+                            <MODULENAME type="java.lang.String">QPCB</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QRSVRC</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QRCRC</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QLOANM</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QDCA</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QRCDR</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QRCER</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QARFM</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QIRFM</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QRCCCP</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QRISK</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QDSIGN</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QSECURT</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <ExpirationDate type="java.util.Date">2043-12-31T03:00:00:000+0300</ExpirationDate>
+                            <LicenseOption type="java.util.Map">
+                                <maxActiveDashboardComponentCount type="java.lang.Integer">99999999</maxActiveDashboardComponentCount>
+                                <maxDashboardComponentCount type="java.lang.Integer">99999999</maxDashboardComponentCount>
+                                <maxDashboardCount type="java.lang.Integer">99999999</maxDashboardCount>
+                            </LicenseOption>
+                            <MODULENAME type="java.lang.String">QSNDSR</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <ExpirationDate type="java.util.Date">2024-12-31T03:00:00:000+0300</ExpirationDate>
+                            <MODULENAME type="java.lang.String">QSNVW</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QMCRED</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QUN</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QPDM</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QTLA</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <MODULENAME type="java.lang.String">QROM</MODULENAME>
+                        </Item>
+                        <Item type="java.util.Map">
+                            <LicenseOption type="java.util.Map">
+                                <RTDBPGCPUCoreCount type="java.lang.Integer">5</RTDBPGCPUCoreCount>
+                                <RTDBPGUserCount type="java.lang.Integer">15</RTDBPGUserCount>
+                            </LicenseOption>
+                            <MODULENAME type="java.lang.String">RTPOSTGREDB</MODULENAME>
+                        </Item>
+                    </ListItems>
+                </MODULES>
+                <Owner type="java.lang.String">Diasoft developer</Owner>
+                <PUBLIC_KEY type="java.lang.String">MIIBtzCCASwGByqGSM44BAEwggEfAoGBAP1/U4EddRIpUt9KnC7s5Of2EbdSPO9EAMMeP4C2USZpRV1AIlH7WT2NWPq/xfW6MPbLm1Vs14E7gB00b/JmYLdrmVClpJ+f6AR7ECLCT7up1/63xhv4O1fnxqimFQ8E+4P208UewwI1VBNaFpEy9nXzrith1yrv8iIDGZ3RSAHHAhUAl2BQjxUjC8yykrmCouuEC/BYHPUCgYEA9+GghdabPd7LvKtcNrhXuXmUr7v6OuqC+VdMCz0HgmdRWVeOutRZT+ZxBxCBgLRJFnEj6EwoFhO3zwkyjMim4TwWeotUfI0o4KOuHiuzpnWRbqN/C/ohNWLx+2J6ASQ7zKTxvqhRkImog9/hWuWfBpKLZl6Ae1UlZAFMO/7PSSoDgYQAAoGANQsyIFl9fV84tNkhG2AgJRYtK1iFkgGuQwcmsu4OCqGYYIhPr4pKn1+fDwKke6fEd11aDKSteZcmH6SyOl2kh9URm5DdREaYkLLw+DVd9TTUX2zxLp3D+xksVjU3CGiX62m93KXru8gfEps+MtWcrhIk72AnZZu2ZfR7aJ2RYu4=</PUBLIC_KEY>
+                <SERIAL_NUMBER type="java.lang.String">E5528E20-41EE-467C-A482-B452A3A851B5</SERIAL_NUMBER>
+                <SIGNATURE type="java.lang.String">MC0CFQCUj6vnMeFw8odfPuF9zrWSRuvUcwIUFIszFG2Bvz1hW+MASItaTjWcDk0=</SIGNATURE>
+            </BODY>

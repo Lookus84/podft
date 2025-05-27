@@ -1,0 +1,25 @@
+{{- range $data := tuple .Values.data }}
+{{- include "cms.configmap" (list $data (include "app.name" $ ) (include "app.fullName" $ )) }}
+{{- end }}
+{{- range $addedModule, $data := .Values.dataAdditionalModule }}
+{{- include "cms.configmap" (list $data $addedModule) }}
+{{- end }}
+
+{{- define "cms.configmap" -}}
+{{- $data := (index . 0) }}
+{{- $name := (index . 1) }}
+{{- $prefixName := (index . 2) }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $prefixName }}-config
+  labels:
+    app: {{$name}}
+  annotations:
+    "helm.sh/hook": "pre-install,pre-upgrade,pre-rollback"
+    "helm.sh/hook-weight": "1"
+    "helm.sh/resource-policy": "keep"
+data:
+  {{- include "cms.param" (list $data "configmap") | indent 2 }}
+{{- end }}

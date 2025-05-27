@@ -1,0 +1,40 @@
+{{ $_ := set .Values "imageType" "app" }}
+{{/**/}}
+{{- if .Values.istio.enabled }}
+{{- $fullName := include "app.name" . -}}
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: {{ include "app.fullName" . }}
+  labels:
+    app: {{ $fullName }}
+    branch: {{ .Chart.Version | quote }}
+spec:
+  host: {{ $fullName }}.{{ .Release.Namespace }}.svc.cluster.local
+  trafficPolicy: # Apply to all ports
+    portLevelSettings:
+    - port:
+        number: 80
+      loadBalancer:
+        simple: LEAST_CONN
+    - port:
+        number: {{ (first  .Values.service.app.ports).port }}
+      loadBalancer:
+        simple: ROUND_ROBIN
+  subsets:
+  - name: v1
+    labels:
+      branch: {{ .Chart.Version | quote }}
+    trafficPolicy:
+      connectionPool:
+        http: {}
+        tcp: {}
+      loadBalancer:
+        simple: ROUND_ROBIN
+      outlierDetection:
+        baseEjectionTime: 30s
+        consecutiveErrors: 1
+        interval: 5s
+        maxEjectionPercent: 100
+{{- end}}
