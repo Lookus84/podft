@@ -1,0 +1,31 @@
+#!jinja|yaml|gpg
+{% import_yaml 'pod-ft/podft/defaults.yaml' as defaults %}
+
+{%- set env = salt['grains.get']('podft:environment', 'test') %}
+
+{# Начало блока создания общего с defaults набора переменных как dict #}
+{%- set system_config = salt['pillar.get']('podft:' + env + ':system:system_config', {}) %}
+
+{% set helm_common = salt['grains.filter_by'](
+  defaults['helm'],
+  grain='podft:environment',
+  default='sft'
+) %}
+
+{% set merged_config = system_config.copy() %}
+{% for key, value in helm_common.items() %}
+    {% do merged_config.update({key: value}) %}
+{% endfor %}
+{# Конец блока #}
+
+{# Зашифрованные переменные в словаре #}
+{%- set secrets = salt['pillar.get']('podft:' + env + ':system:system_gpg', {}) %} 
+
+{# Общие перменные для приложений в kubernetes, для всех манифестов. Переопределяются манифестами конкретных приложений #}
+{%- set common =  salt['pillar.get']('podft:' + env + ':system:common', {}) %}
+
+{# Получение словаря со всеми приложениями стенда для пербора в цикле #}
+{%- set apps = salt['pillar.get']('podft:' + env + ':applications', {}) %}
+
+
+
